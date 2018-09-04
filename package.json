@@ -1,0 +1,33 @@
+{
+  "name": "xml-sitemap-url-scraper",
+  "version": "0.0.1",
+  "description": "Scrapes all urls from an xml sitemap, or an array of xml sitemaps, including nested xml sitemaps.",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/boon4376/xml-sitemap-url-scraper.git"
+  },
+  "keywords": [
+    "xml",
+    "sitemap",
+    "scrape"
+  ],
+  "author": "Matthew Rideout",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/boon4376/xml-sitemap-url-scraper/issues"
+  },
+  "homepage": "https://github.com/boon4376/xml-sitemap-url-scraper#readme",
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "eslint": "^5.5.0",
+    "mocha": "^5.2.0"
+  },
+  "dependencies": {
+    "axios": "^0.18.0",
+    "xml2js": "^0.4.19"
+  }
+}
