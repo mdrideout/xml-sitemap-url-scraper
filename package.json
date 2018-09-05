@@ -1,6 +1,6 @@
 {
   "name": "xml-sitemap-url-scraper",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Scrapes all urls from an xml sitemap, or an array of xml sitemaps, including nested xml sitemaps.",
   "main": "index.js",
   "scripts": {
