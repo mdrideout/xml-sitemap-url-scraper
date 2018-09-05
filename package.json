@@ -16,7 +16,7 @@
     "sitemap",
     "scrape"
   ],
-  "author": "Matthew Rideout",
+  "author": "Matthew Rideout <boon4376@gmail.com> (https://github.com/boon4376)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/boon4376/xml-sitemap-url-scraper/issues"
