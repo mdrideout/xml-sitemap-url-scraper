@@ -4,7 +4,6 @@
   "description": "Scrapes all urls from an xml sitemap, or an array of xml sitemaps, including nested xml sitemaps.",
   "main": "index.js",
   "scripts": {
-    "test": "mocha",
     "start": "node index.js"
   },
   "repository": {
@@ -14,7 +13,7 @@
   "keywords": [
     "xml",
     "sitemap",
-    "scrape"
+    "scraper"
   ],
   "author": "Matthew Rideout <boon4376@gmail.com> (https://github.com/boon4376)",
   "license": "MIT",
@@ -24,10 +23,8 @@
   "homepage": "https://github.com/boon4376/xml-sitemap-url-scraper#readme",
   "devDependencies": {
     "babel-eslint": "^9.0.0",
-    "chai": "^4.1.2",
     "eslint": "^5.5.0",
-    "eslint-plugin-flowtype": "^2.50.0",
-    "mocha": "^5.2.0"
+    "eslint-plugin-flowtype": "^2.50.0"
   },
   "dependencies": {
     "axios": "^0.18.0",
