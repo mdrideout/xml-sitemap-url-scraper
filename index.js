@@ -61,7 +61,7 @@ const sitemapUrlScraper = (sitemapArray) => {
             }))
         })
         .then((result) => {
-            console.log("Completed getting all urlset(s) from the compressed XML sitemaps.");
+            // console.log("Completed getting all urlset(s) from the compressed XML sitemaps.");
 
             // Add any parsed urlset(s) to the allUrls array
             handleUrlsets(result.filter(item => {
@@ -70,8 +70,8 @@ const sitemapUrlScraper = (sitemapArray) => {
                 }
             }));
 
-            console.log("Completed parsing all sitemaps.\nAll URLS: ", util.inspect(allUrls, { maxArrayLength: 100 }))
-            console.log("Total Urls: ", allUrls.length);
+            // console.log("Completed parsing all sitemaps.\nAll URLS: ", util.inspect(allUrls, { maxArrayLength: 100 }))
+            // console.log("Total Urls: ", allUrls.length);
 
             // Final return for function
             return resolve(allUrls);
@@ -137,7 +137,7 @@ const sitemapUrlScraper = (sitemapArray) => {
                 // Create an array of promises for each sitemap request we send
                 const promises = sitemapArray.reduce((accumulator, currentSitemap) => {
                     accumulator.push(new Promise((resolve, reject) => {
-                        console.log("Processing XML Sitemap: ", currentSitemap);
+                        // console.log("Processing XML Sitemap: ", currentSitemap);
                         // Else - if sitemap is a real URL
                         axios.get(currentSitemap)
                         .then((response) => {
@@ -162,7 +162,7 @@ const sitemapUrlScraper = (sitemapArray) => {
                 // When all promises are resolved (all parent sitemaps retrieved)
                 Promise.all(promises)
                 .then(result => {
-                    console.log("Done getting batch of " + sitemapArray.length + " XML sitemaps.");
+                    // console.log("Done getting batch of " + sitemapArray.length + " XML sitemaps.");
                     resolve(result);
                 })
                 .catch(err => {
@@ -195,7 +195,7 @@ const sitemapUrlScraper = (sitemapArray) => {
                 // Retrieve a stream of the zip file, pipe it to gunzip, then parse the XML file as json - push the JSON to the parsedXmlArray - then resolve the promise to move to the next item
                 let processCompressedXmlFile = (sitemapUrl) => {
                     return new Promise((resolve, reject) => {
-                        console.log("Processing Compressed XML Sitemap: ", sitemapUrl);
+                        // console.log("Processing Compressed XML Sitemap: ", sitemapUrl);
 
                         // Configure axios to receive a response type of stream
                         axios({
@@ -242,7 +242,7 @@ const sitemapUrlScraper = (sitemapArray) => {
 
                             })
                             .on("error", function(e) {
-                                console.log("Gunzip Error: ", e);
+                                reject(console.log("Gunzip Error: ", e));
                             })
                         })
                         .catch(err => {
@@ -252,7 +252,7 @@ const sitemapUrlScraper = (sitemapArray) => {
                 }
 
                 promises.then(result => {
-                    console.log("Done getting batch of " + parsedXmlArray.length + " compressed XML sitemaps.");
+                    // console.log("Done getting batch of " + parsedXmlArray.length + " compressed XML sitemaps.");
                     resolve(parsedXmlArray);
                 })
                 .catch(err => {
