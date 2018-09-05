@@ -8,7 +8,7 @@ const util = require('util')
  * @param {array} sitemapArray is an array of xml sitemap urls, ex: "https://www.example.com/sitemap.xml"
  * @returns {array} of urls from all sitemaps provided
  */
-exports.sitemapUrlScraper = function(sitemapArray) {
+const sitemapUrlScraper = (sitemapArray) => {
     // Array to hold all URLs parsed out of all sitemaps
     let allUrls = [];
 
@@ -259,4 +259,8 @@ exports.sitemapUrlScraper = function(sitemapArray) {
             })
         });
     }
+}
+
+module.exports = {
+    sitemapUrlScraper
 }
