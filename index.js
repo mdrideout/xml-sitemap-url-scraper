@@ -1,6 +1,8 @@
 const zlib = require('zlib');
+const fs = require('fs');
 const parseString = require('xml2js').parseString;
 const axios = require('axios');
+const util = require('util')
 
 
 let sitemapArray = [
@@ -19,7 +21,7 @@ let allUrls = [];
 let parentSiteMaps = getSitemapsAsJson(sitemapArray);
 parentSiteMaps
 .then((result) => {
-    console.log("Parent Site Maps: ", result);
+    console.log("Completed parsing parent Site Maps: ", result);
 
     // Add any parsed urlset(s) to the allUrls array
     handleUrlsets(result.filter(item => {
@@ -28,15 +30,36 @@ parentSiteMaps
         }
     }));
 
-    
-    // Handle sitemapindex objects (under which more sitemaps are nested, potentially compressed)
-    handleSitemapindex(result.filter(item => {
+    // Get all child sitemap urls
+    let childSitemaps = getSitemapUrlsFromIndexes(result.filter(item => {
         if (typeof item["sitemapindex"] !== "undefined") {
             return true;
         }
     }));
+    console.log("Child Sitemaps", childSitemaps);
+    
+    // Parse child sitemaps that are not compressed as JSON
+    return getSitemapsAsJson(childSitemaps.filter(currentSitemap => {
+        if (/\.gz$/i.test(currentSitemap)) {
+            return false;
+        } else {
+            return true;
+        }
+    }))
 
+})
+.then((result) => {
+    // Add any parsed urlset(s) to the allUrls array
+    handleUrlsets(result.filter(item => {
+        if(typeof item["urlset"] !== "undefined") {
+            return true;
+        }
+    }));
+    console.log("Completed parsing non-compressed child site maps: ", util.inspect(allUrls, { maxArrayLength: null }))
 
+})
+.catch(err => {
+    console.log("Error: ", err);
 })
 
 
@@ -44,6 +67,7 @@ parentSiteMaps
 /**
  * Handle urlsets
  * @param {array} urlsetArray is an array of urlset objects parsed from xml
+ * @returns {*} nothing, just pushes urls into the allUrls array
  */
 function handleUrlsets(urlsetArray) {
     // Push urls to allUrls array
@@ -58,13 +82,27 @@ function handleUrlsets(urlsetArray) {
 
 
 /**
- * Handle sitemapindex Objects
- * Gets the URL's of all sitemaps listed in the sitemapindex, and proceeds to get them as JSON using getSitemapsAsJson
+ * Get Sitemap Urls From Indexes
+ * Gets the URL's of all sitemaps listed in the all of the provided sitemapindex(s)
  * @param {array} sitemapindexArray is an array of sitemapindex objects parsed from xml
+ * @returns {array} of child sitemaps
  */
-function handleSitemapindex(sitemapindexArray) {
-    // console.log("Site Map Indexes: ", sitemapindexArray);
-    console.log("Site Map Index Example: ", sitemapindexArray[0]["sitemapindex"]["sitemap"]);
+function getSitemapUrlsFromIndexes(sitemapindexArray) {
+    // Create an array of all sitemap urls
+    let allChildSitemaps = [];
+    
+    // For each sitemapindex
+    sitemapindexArray.forEach(sitemapindex => {
+        
+        // for each sitemap object
+        sitemapindex["sitemapindex"]["sitemap"].forEach(sitemapObject => {
+            
+            // Add each sitemap url to our allChildSitemaps object (trim any trailing "/" to make consistent)
+            allChildSitemaps.push(sitemapObject["loc"][0].replace(/\/$/, ""));
+        })
+    })
+
+    return allChildSitemaps;
 }
 
 
@@ -72,15 +110,16 @@ function handleSitemapindex(sitemapindexArray) {
  * Get Sitemaps As JSON
  * Inputs an array of XML sitemap URLS
  * Outputs an array of JSON objects, converted from the XML
- * @param {*} sitemapArray is an array of URL's to xml sitemaps
+ * @param {array} sitemapArray is an array of URL's to xml sitemaps
+ * @returns {array} a promise resolving with array of parsed xml sitemaps as JSON
  */
 function getSitemapsAsJson(sitemapArray) {
     return new Promise ((resolve, reject) => {
         // Create an array of promises for each sitemap request we send
         const promises = sitemapArray.reduce((accumulator, currentSitemap) => {
             accumulator.push(new Promise((resolve, reject) => {
-
-                // If sitemap is a normal URL
+                console.log("Retrieving data from xml sitemap URL...", currentSitemap);
+                // Else - if sitemap is a real URL
                 axios.get(currentSitemap)
                 .then((response) => {
                     // Parse XML into JSON
@@ -97,12 +136,6 @@ function getSitemapsAsJson(sitemapArray) {
                 .catch(err => {
                     reject(err);
                 });
-
-
-                // If sitemap is a compressed file
-
-
-
             }));
             return accumulator;
         }, []);
@@ -118,5 +151,88 @@ function getSitemapsAsJson(sitemapArray) {
             reject(err);
         });
     });
+}
+
+
+/**
+ * Handle Compressed XML Synchronously
+ * Synchronously unzips and parses as json compressed XML sitemaps. This is done synchronously to avoid memory or resource issues
+ * that may come if trying to unzip and read thousands of these at once.
+ * @param {array} compressedSitemapArray is an array of compressed XML sitemap URLS
+ * @returns {*} promise resolving with an array of sitemaps parsed as JSON
+ */
+function handleCompressedXmlSync(compressedSitemapArray) {
+
+    // Array to store parsed XML JSON
+    let parsedXmlArray = [];
+
+    // Use reduce to synchronously process each zipped XML file
+    let promises = compressedSitemapArray.reduce((promise, sitemapUrl) => {
+        return promise.then(() => {
+            return processCompressedXmlFile(sitemapUrl);
+        });
+    }, Promise.resolve());
+    
+    // Retrieve a stream of the zip file, pipe it to gunzip, then parse the XML file as json - push the JSON to the parsedXmlArray - then resolve the promise to move to the next item
+    let processCompressedXmlFile = (sitemapUrl) => {
+        return new Promise((resolve, reject) => {
+            // Configure axios to receive a response type of stream
+            axios({
+                method:'get',
+                url: sitemapUrl,
+                responseType:'stream'
+            })
+            .then((response) => {
+                // Buffer to hold file download stream chunks
+                let buffer = [];
+
+                // Instantiate Gunzip
+                let gunzip = zlib.createGunzip();
+
+                // Pipe response stream data to gunzip instance
+                response.data.pipe(gunzip);
+
+                // Handle Data / End / Error events
+                gunzip
+                .on('data', function(data) {
+                    // decompression chunk ready, add it to the buffer
+                    buffer.push(data.toString())
+                })
+                .on("end", function() {
+                    // response and decompression complete, join the buffer
+                    let fullResponse = buffer.join("");
+
+                    // Parse the xml string into JSON
+                    parseString(fullResponse, (err, result) => {
+                        if(err) {
+                            console.log("Compressed sitemap error: ", err);
+                            reject(err);
+                        } else {
+                            // Push the JSON to our array
+                            parsedXmlArray.push(result);
+
+                            // Resolve the promise to move onto the next item
+                            resolve();
+                        }
+                    });
+
+                })
+                .on("error", function(e) {
+                    console.log("Gunzip Error: ", e);
+                })
+            })
+            .catch(err => {
+                reject("Axios gzip stream get error. ", err);
+            });
+        });
+    }
+
+    promises.then(result => {
+        console.log("All Done!: ", parsedXmlArray);
+    })
+    .catch(err => {
+        console.log("Promise error: ", err);
+    })
+    
 }
 
