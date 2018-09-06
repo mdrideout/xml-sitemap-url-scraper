@@ -137,7 +137,7 @@ const sitemapUrlScraper = (sitemapArray) => {
                 // Create an array of promises for each sitemap request we send
                 const promises = sitemapArray.reduce((accumulator, currentSitemap) => {
                     accumulator.push(new Promise((resolve, reject) => {
-                        // console.log("Processing XML Sitemap: ", currentSitemap);
+                        console.log("Processing XML Sitemap: ", currentSitemap);
                         // Else - if sitemap is a real URL
                         axios.get(currentSitemap)
                         .then((response) => {
@@ -195,7 +195,7 @@ const sitemapUrlScraper = (sitemapArray) => {
                 // Retrieve a stream of the zip file, pipe it to gunzip, then parse the XML file as json - push the JSON to the parsedXmlArray - then resolve the promise to move to the next item
                 let processCompressedXmlFile = (sitemapUrl) => {
                     return new Promise((resolve, reject) => {
-                        // console.log("Processing Compressed XML Sitemap: ", sitemapUrl);
+                        console.log("Processing Compressed XML Sitemap: ", sitemapUrl);
 
                         // Configure axios to receive a response type of stream
                         axios({
