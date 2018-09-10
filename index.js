@@ -2,13 +2,15 @@ const zlib = require('zlib');
 const parseString = require('xml2js').parseString;
 const axios = require('axios');
 const util = require('util')
+const pLimit = require('p-limit');
 
 /**
  * XML Sitemap URL Scraper
  * @param {array} sitemapArray is an array of xml sitemap urls, ex: "https://www.example.com/sitemap.xml"
+ * @param {number} compressedConcurrent is the number of compressed XML sitemaps to process at once (lower numbers save on CPU and Memory resources.)
  * @returns {array} of urls from all sitemaps provided
  */
-const sitemapUrlScraper = (sitemapArray) => {
+const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
     return new Promise((resolve, reject) => {
         // Array to hold all URLs parsed out of all sitemaps
         let allUrls = [];
@@ -54,7 +56,7 @@ const sitemapUrlScraper = (sitemapArray) => {
             // console.log("Completed parsing non-compressed child site maps: ", util.inspect(allUrls, { maxArrayLength: null }))
 
             // Parse child sitemaps that ARE compressed, as JSON
-            return handleCompressedXmlSync(childSitemaps.filter(currentSitemap => {
+            return handleCompressedXml(childSitemaps.filter(currentSitemap => {
                 if (/\.gz$/i.test(currentSitemap)) {
                     return true;
                 }
@@ -174,95 +176,92 @@ const sitemapUrlScraper = (sitemapArray) => {
 
 
         /**
-         * Handle Compressed XML Synchronously
-         * Synchronously unzips and parses as json compressed XML sitemaps. This is done synchronously to avoid memory or resource issues
-         * that may come if trying to unzip and read thousands of these at once.
+         * Handle Compressed XML
+         * Upzips and parses as json XML sitemaps. This is done with limited concurrency to avoid memory and CPU resource issues.
          * @param {array} compressedSitemapArray is an array of compressed XML sitemap URLS
          * @returns {*} promise resolving with an array of sitemaps parsed as JSON
          */
-        function handleCompressedXmlSync(compressedSitemapArray) {
+        function handleCompressedXml(compressedSitemapArray) {
             return new Promise((resolve, reject) => {
                 // Array to store parsed XML JSON
                 let parsedXmlArray = [];
 
-                // Use reduce to synchronously process each zipped XML file
-                let promises = compressedSitemapArray.reduce((promise, sitemapUrl) => {
-                    return promise.then(() => {
-                        return processCompressedXmlFile(sitemapUrl);
-                    });
-                }, Promise.resolve());
+
+
+                // Define our promise limiter with desired concurrency (taken from main function params)
+                const promiseLimit = pLimit(compressedConcurrent);
+
+                // Create an array of our promise returning functions
+                let promises = compressedSitemapArray.map(sitemapUrl => {
+                    return promiseLimit(() => processCompressedXmlFile(sitemapUrl));
+                });
                 
-                // Retrieve a stream of the zip file, pipe it to gunzip, then parse the XML file as json - push the JSON to the parsedXmlArray - then resolve the promise to move to the next item
-                let processCompressedXmlFile = (sitemapUrl) => {
-                    return new Promise((resolve, reject) => {
-                        console.log("Processing Compressed XML Sitemap: ", sitemapUrl);
+                (async () => {
+                    // Only one promise is run at once
+                    const result = await Promise.all(promises);
+                    // console.log(result);
+                    return resolve(result);
+                })();
+            });
+        }
 
-                        // Configure axios to receive a response type of stream
-                        axios({
-                            method:'get',
-                            url: sitemapUrl,
-                            responseType:'stream'
-                        })
-                        .then((response) => {
-                            // Buffer to hold file download stream chunks
-                            let buffer = [];
 
-                            // Instantiate Gunzip
-                            let gunzip = zlib.createGunzip();
+        // Retrieve a stream of the zip file, pipe it to gunzip, then parse the XML file as json - push the JSON to the parsedXmlArray - then resolve the promise to move to the next item
+        function processCompressedXmlFile(sitemapUrl) {
+            return new Promise((resolve, reject) => {
+                console.log("Processing Compressed XML Sitemap: ", sitemapUrl);
 
-                            // Pipe response stream data to gunzip instance
-                            response.data.pipe(gunzip);
+                // Configure axios to receive a response type of stream
+                axios({
+                    method:'get',
+                    url: sitemapUrl,
+                    responseType:'stream'
+                })
+                .then((response) => {
+                    // Buffer to hold file download stream chunks
+                    let buffer = [];
 
-                            // Handle Data / End / Error events
-                            gunzip
-                            .on('data', function(data) {
-                                // decompression chunk ready, add it to the buffer
-                                buffer.push(data.toString())
-                            })
-                            .on("end", function() {
-                                // response and decompression complete, join the buffer
-                                let fullResponse = buffer.join("");
+                    // Instantiate Gunzip
+                    let gunzip = zlib.createGunzip();
 
-                                // Parse the xml string into JSON
-                                parseString(fullResponse, (err, result) => {
-                                    if(err) {
-                                        console.log("Compressed sitemap error: ", err);
-                                        reject(err);
-                                    } else {
-                                        // Push the JSON to our array
-                                        parsedXmlArray.push(result);
+                    // Pipe response stream data to gunzip instance
+                    response.data.pipe(gunzip);
 
-                                        // Resolve the promise to move onto the next item
-                                        setTimeout(() => {
-                                            resolve();
-                                        }, 1);
-                                        
-                                    }
-                                });
+                    // Handle Data / End / Error events
+                    gunzip
+                    .on('data', function(data) {
+                        // decompression chunk ready, add it to the buffer
+                        buffer.push(data.toString())
+                    })
+                    .on("end", function() {
+                        // response and decompression complete, join the buffer
+                        let fullResponse = buffer.join("");
 
-                            })
-                            .on("error", function(e) {
-                                reject(console.log("Gunzip Error: ", e));
-                            })
-                        })
-                        .catch(err => {
-                            reject("Axios gzip stream get error. ", err);
+                        // Parse the xml string into JSON
+                        parseString(fullResponse, (err, result) => {
+                            if(err) {
+                                console.log("Compressed sitemap error: ", err);
+                                reject(err);
+                            } else {
+                                // Resolve with the JSON parsed
+                                resolve(result);                                
+                            }
                         });
-                    });
-                }
 
-                promises.then(result => {
-                    // console.log("Done getting batch of " + parsedXmlArray.length + " compressed XML sitemaps.");
-                    resolve(parsedXmlArray);
+                    })
+                    .on("error", function(e) {
+                        reject(console.log("Gunzip Error: ", e));
+                    })
                 })
                 .catch(err => {
-                    console.log("Promises error: ", err);
-                    reject(err);
-                })
+                    reject("Axios gzip stream get error. ", err);
+                });
             });
         }
     });
 }
+
+
 
 module.exports = {
     sitemapUrlScraper
