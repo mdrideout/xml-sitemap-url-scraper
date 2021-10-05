@@ -10,7 +10,7 @@ const pLimit = require('p-limit');
  * @param {number} compressedConcurrent is the number of compressed XML sitemaps to process at once (lower numbers save on CPU and Memory resources.)
  * @returns {array} of urls from all sitemaps provided
  */
-const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
+const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1, headers = {}) => {
     return new Promise((resolve, reject) => {
         // Array to hold all URLs parsed out of all sitemaps
         let allUrls = [];
@@ -19,7 +19,7 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
         let childSitemaps = [];
 
         // First, get parent level XML sitemaps as an array of JSON objects
-        let parentSiteMaps = getSitemapsAsJson(sitemapArray);
+        let parentSiteMaps = getSitemapsAsJson(sitemapArray, headers);
         parentSiteMaps
         .then((result) => {
             // Add any parsed urlset(s) to the allUrls array
@@ -35,7 +35,7 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
                     return true;
                 }
             }));
-            
+
             // Parse child sitemaps that are NOT compressed, as JSON
             return getSitemapsAsJson(childSitemaps.filter(currentSitemap => {
                 if (/\.gz$/i.test(currentSitemap)) {
@@ -43,7 +43,7 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
                 } else {
                     return true;
                 }
-            }))
+            }, headers))
 
         })
         .then((result) => {
@@ -111,13 +111,13 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
         function getSitemapUrlsFromIndexes(sitemapindexArray) {
             // Create an array of all sitemap urls
             let allChildSitemaps = [];
-            
+
             // For each sitemapindex
             sitemapindexArray.forEach(sitemapindex => {
-                
+
                 // for each sitemap object
                 sitemapindex["sitemapindex"]["sitemap"].forEach(sitemapObject => {
-                    
+
                     // Add each sitemap url to our allChildSitemaps object (trim any trailing "/" to make consistent)
                     allChildSitemaps.push(sitemapObject["loc"][0].replace(/\/$/, ""));
                 })
@@ -134,16 +134,16 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
          * @param {array} sitemapArray is an array of URL's to xml sitemaps
          * @returns {array} a promise resolving with array of parsed xml sitemaps as JSON
          */
-        function getSitemapsAsJson(sitemapArray) {
+        function getSitemapsAsJson(sitemapArray, headers) {
             return new Promise ((resolve, reject) => {
                 // Create an array of promises for each sitemap request we send
                 const promises = sitemapArray.reduce((accumulator, currentSitemap) => {
                     accumulator.push(new Promise((resolve, reject) => {
-                        console.log("Processing XML Sitemap: ", currentSitemap);
                         // Else - if sitemap is a real URL
-                        axios.get(currentSitemap)
+                        axios.get(currentSitemap, { headers })
                         .then((response) => {
-                            // Parse XML into JSON
+                          // Parse XML into JSON
+                            console.log(response.data.toString());
                             parseString(response.data.toString(), (err, result) => {
                                 if(err) {
                                     console.log("Sitemap error: ", err);
@@ -195,7 +195,7 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1) => {
                 let promises = compressedSitemapArray.map(sitemapUrl => {
                     return promiseLimit(() => processCompressedXmlFile(sitemapUrl));
                 });
-                
+
                 (async () => {
                     // Only one promise is run at once
                     const result = await Promise.all(promises);
