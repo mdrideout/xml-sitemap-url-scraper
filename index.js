@@ -92,10 +92,12 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1, headers = {})
          */
         function handleUrlsets(urlsetArray) {
             // Push urls to allUrls array
-            urlsetArray.forEach(urlSet => {
-                urlSet["urlset"]["url"].forEach(url => {
-                    allUrls.push(url["loc"][0])
-                })
+          urlsetArray.forEach(urlSet => {
+              if(urlSet != undefined && urlSet["urlset"]["url"] != undefined) {
+                  urlSet["urlset"]["url"].forEach(url => {
+                      allUrls.push(url["loc"][0])
+                  })
+              }
             })
             // console.log("URLSET URLs: ", allUrls);
         }
@@ -135,10 +137,12 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1, headers = {})
          * @returns {array} a promise resolving with array of parsed xml sitemaps as JSON
          */
         function getSitemapsAsJson(sitemapArray, headers) {
+          const promiseLimit = pLimit(compressedConcurrent);
             return new Promise ((resolve, reject) => {
                 // Create an array of promises for each sitemap request we send
                 const promises = sitemapArray.reduce((accumulator, currentSitemap) => {
-                    accumulator.push(new Promise((resolve, reject) => {
+                  accumulator.push(promiseLimit(() => {
+                      return new Promise((resolve, reject) => {
                         // Else - if sitemap is a real URL
                         axios.get(currentSitemap, { headers })
                         .then((response) => {
@@ -157,6 +161,7 @@ const sitemapUrlScraper = (sitemapArray, compressedConcurrent = 1, headers = {})
                         .catch(err => {
                             reject(err);
                         });
+                      })
                     }));
                     return accumulator;
                 }, []);
